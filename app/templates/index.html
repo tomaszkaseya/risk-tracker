@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Risk Tracker - Dashboard{% endblock %}
+
+{% block content %}
+<div class="grid grid-2">
+    <div class="card">
+        <h2>Dashboard Overview</h2>
+        <div class="card-meta">
+            <p><strong>Total Epics:</strong> {{ epics|length }}</p>
+            <p><strong>Active Epics:</strong> {{ epics|selectattr("status", "in", ["Planned", "In Progress"])|list|length }}</p>
+            <p><strong>Blocked/Delayed:</strong> {{ epics|selectattr("status", "in", ["Blocked", "Delayed"])|list|length }}</p>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h2>Quick Actions</h2>
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+            <button class="btn btn-primary" onclick="showCreateEpicModal()">Create New Epic</button>
+            <a href="/epics" class="btn btn-secondary">View All Epics</a>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Recent Epics</h2>
+        <a href="/epics" class="btn btn-small btn-primary">View All</a>
+    </div>
+    
+    {% if epics %}
+        <div class="grid">
+            {% for epic in epics[:5] %}
+                <div class="list-item">
+                    <div class="list-item-header">
+                        <a href="/epics/{{ epic.id }}" class="list-item-title">{{ epic.title }}</a>
+                        <span class="status-badge status-{{ epic.status.lower().replace(' ', '-') }}">{{ epic.status }}</span>
+                    </div>
+                    <div class="list-item-meta">
+                        <p>{{ epic.description[:100] + '...' if epic.description and epic.description|length > 100 else epic.description or 'No description' }}</p>
+                        <p><strong>Target Launch:</strong> {{ epic.target_launch_date or 'Not set' }}</p>
+                        <p><strong>Risks:</strong> {{ epic.risks|length }}</p>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            <p>No epics created yet. <a href="#" onclick="showCreateEpicModal()">Create your first epic</a> to get started!</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %} 

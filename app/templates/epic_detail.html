@@ -1,0 +1,302 @@
+{% extends "base.html" %}
+
+{% block title %}{{ epic.title }} - Risk Tracker{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">{{ epic.title }}</h2>
+        <div>
+            <span class="status-badge status-{{ epic.status.lower().replace(' ', '-') }}">{{ epic.status }}</span>
+            <button class="btn btn-small btn-primary" onclick="showEditEpicModal()" style="margin-left: 1rem;">Edit Epic</button>
+        </div>
+    </div>
+    
+    <div class="grid grid-2">
+        <div>
+            <h3>Epic Details</h3>
+            <p><strong>Description:</strong> {{ epic.description or 'No description provided' }}</p>
+            <p><strong>Target Launch Date:</strong> {{ epic.target_launch_date or 'Not set' }}</p>
+            <p><strong>Actual Launch Date:</strong> {{ epic.actual_launch_date or 'Not launched' }}</p>
+            <p><strong>Created:</strong> {{ epic.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+            <p><strong>Last Updated:</strong> {{ epic.updated_at.strftime('%Y-%m-%d %H:%M') }}</p>
+        </div>
+        
+        <div>
+            <h3>Actions</h3>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                <button class="btn btn-success btn-small" onclick="showDateChangeModal()">Request Date Change</button>
+                <button class="btn btn-primary btn-small" onclick="showAddRiskModal()">Add Risk</button>
+                <button class="btn btn-danger btn-small" onclick="deleteEpic()">Delete Epic</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Associated Risks ({{ epic.risks|length }})</h2>
+        <button class="btn btn-small btn-primary" onclick="showAddRiskModal()">Add Risk</button>
+    </div>
+    
+    {% if epic.risks %}
+        <div class="grid">
+            {% for risk in epic.risks %}
+                <div class="list-item">
+                    <div class="list-item-header">
+                        <div class="list-item-title">{{ risk.description }}</div>
+                        <div>
+                            <span class="status-badge status-{{ risk.status.lower().replace(' ', '-') }}">{{ risk.status }}</span>
+                            <button class="btn btn-small btn-secondary" onclick="showRiskUpdatesModal({{ risk.id }})" style="margin-left: 0.5rem;">Updates ({{ risk.updates|length }})</button>
+                            <button class="btn btn-small btn-primary" onclick="showEditRiskModal({{ risk.id }})" style="margin-left: 0.5rem;">Edit</button>
+                        </div>
+                    </div>
+                    <div class="list-item-meta">
+                        <p><strong>Mitigation Plan:</strong> {{ risk.mitigation_plan or 'No mitigation plan provided' }}</p>
+                        <p><strong>Date Added:</strong> {{ risk.date_added }}</p>
+                        <p><strong>Last Updated:</strong> {{ risk.updated_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            <p>No risks associated with this epic yet. <a href="#" onclick="showAddRiskModal()">Add the first risk</a> to start tracking.</p>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Date Change Request Modal -->
+<div id="dateChangeModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 2rem; border-radius: 8px; width: 90%; max-width: 500px;">
+        <h2>Request Date Change</h2>
+        <form id="dateChangeForm" onsubmit="requestDateChange(event)">
+            <div class="form-group">
+                <label class="form-label" for="reason">Reason for Date Change *</label>
+                <textarea id="reason" name="reason" class="form-textarea" required placeholder="Explain why the date needs to change..."></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="proposed_date">Proposed New Date (Optional)</label>
+                <input type="date" id="proposed_date" name="proposed_date" class="form-input">
+            </div>
+            <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 2rem;">
+                <button type="button" class="btn btn-secondary" onclick="hideDateChangeModal()">Cancel</button>
+                <button type="submit" class="btn btn-success">Send Request</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Add Risk Modal -->
+<div id="addRiskModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 2rem; border-radius: 8px; width: 90%; max-width: 500px;">
+        <h2>Add New Risk</h2>
+        <form id="addRiskForm" onsubmit="addRisk(event)">
+            <div class="form-group">
+                <label class="form-label" for="risk_description">Risk Description *</label>
+                <textarea id="risk_description" name="description" class="form-textarea" required placeholder="Describe the risk..."></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="mitigation_plan">Mitigation Plan</label>
+                <textarea id="mitigation_plan" name="mitigation_plan" class="form-textarea" placeholder="How will this risk be mitigated?"></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="risk_status">Status</label>
+                <select id="risk_status" name="status" class="form-select">
+                    <option value="Open">Open</option>
+                    <option value="Mitigating">Mitigating</option>
+                    <option value="Mitigated">Mitigated</option>
+                    <option value="Accepted">Accepted</option>
+                    <option value="Closed">Closed</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 2rem;">
+                <button type="button" class="btn btn-secondary" onclick="hideAddRiskModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Add Risk</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Risk Updates Modal -->
+<div id="riskUpdatesModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 2rem; border-radius: 8px; width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto;">
+        <h2>Risk Updates</h2>
+        <div id="riskUpdatesContent"></div>
+        <div style="margin-top: 2rem; border-top: 1px solid #eee; padding-top: 1rem;">
+            <h3>Add Update</h3>
+            <form id="addUpdateForm" onsubmit="addRiskUpdate(event)">
+                <div class="form-group">
+                    <label class="form-label" for="update_text">Update Text *</label>
+                    <textarea id="update_text" name="update_text" class="form-textarea" required placeholder="Describe the update..."></textarea>
+                </div>
+                <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="hideRiskUpdatesModal()">Close</button>
+                    <button type="submit" class="btn btn-primary">Add Update</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentRiskId = null;
+
+function showDateChangeModal() {
+    document.getElementById('dateChangeModal').style.display = 'block';
+}
+
+function hideDateChangeModal() {
+    document.getElementById('dateChangeModal').style.display = 'none';
+    document.getElementById('dateChangeForm').reset();
+}
+
+function showAddRiskModal() {
+    document.getElementById('addRiskModal').style.display = 'block';
+}
+
+function hideAddRiskModal() {
+    document.getElementById('addRiskModal').style.display = 'none';
+    document.getElementById('addRiskForm').reset();
+}
+
+function showRiskUpdatesModal(riskId) {
+    currentRiskId = riskId;
+    document.getElementById('riskUpdatesModal').style.display = 'block';
+    loadRiskUpdates(riskId);
+}
+
+function hideRiskUpdatesModal() {
+    document.getElementById('riskUpdatesModal').style.display = 'none';
+    currentRiskId = null;
+}
+
+async function requestDateChange(event) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    
+    try {
+        const response = await fetch(`/api/epics/{{ epic.id }}/request-date-change`, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (response.ok) {
+            alert('Date change request sent successfully!');
+            hideDateChangeModal();
+        } else {
+            const error = await response.json();
+            alert('Error sending request: ' + (error.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error sending request: ' + error.message);
+    }
+}
+
+async function addRisk(event) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    const data = Object.fromEntries(formData.entries());
+    
+    if (!data.mitigation_plan) data.mitigation_plan = null;
+
+    try {
+        const response = await fetch(`/api/epics/{{ epic.id }}/risks`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (response.ok) {
+            hideAddRiskModal();
+            location.reload();
+        } else {
+            const error = await response.json();
+            alert('Error adding risk: ' + (error.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error adding risk: ' + error.message);
+    }
+}
+
+async function loadRiskUpdates(riskId) {
+    try {
+        const response = await fetch(`/api/risks/${riskId}`);
+        const risk = await response.json();
+        
+        const content = document.getElementById('riskUpdatesContent');
+        if (risk.updates && risk.updates.length > 0) {
+            content.innerHTML = risk.updates.map(update => `
+                <div class="list-item">
+                    <div class="list-item-header">
+                        <div class="list-item-meta">${update.date_added}</div>
+                    </div>
+                    <p>${update.update_text}</p>
+                </div>
+            `).join('');
+        } else {
+            content.innerHTML = '<p class="alert alert-info">No updates for this risk yet.</p>';
+        }
+    } catch (error) {
+        document.getElementById('riskUpdatesContent').innerHTML = '<p class="alert alert-error">Error loading updates.</p>';
+    }
+}
+
+async function addRiskUpdate(event) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    const data = Object.fromEntries(formData.entries());
+
+    try {
+        const response = await fetch(`/api/risks/${currentRiskId}/updates`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (response.ok) {
+            document.getElementById('addUpdateForm').reset();
+            loadRiskUpdates(currentRiskId);
+        } else {
+            const error = await response.json();
+            alert('Error adding update: ' + (error.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error adding update: ' + error.message);
+    }
+}
+
+async function deleteEpic() {
+    if (confirm('Are you sure you want to delete this epic? This action cannot be undone.')) {
+        try {
+            const response = await fetch(`/api/epics/{{ epic.id }}`, {
+                method: 'DELETE',
+            });
+
+            if (response.ok) {
+                alert('Epic deleted successfully!');
+                window.location.href = '/';
+            } else {
+                const error = await response.json();
+                alert('Error deleting epic: ' + (error.detail || 'Unknown error'));
+            }
+        } catch (error) {
+            alert('Error deleting epic: ' + error.message);
+        }
+    }
+}
+
+// Close modals when clicking outside
+document.querySelectorAll('[id$="Modal"]').forEach(modal => {
+    modal.addEventListener('click', function(event) {
+        if (event.target === this) {
+            this.style.display = 'none';
+        }
+    });
+});
+</script>
+{% endblock %} 

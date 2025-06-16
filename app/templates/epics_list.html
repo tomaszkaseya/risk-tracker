@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}All Epics - Risk Tracker{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">All Epics</h2>
+        <button class="btn btn-primary" onclick="showCreateEpicModal()">Create New Epic</button>
+    </div>
+    
+    {% if epics %}
+        <div class="grid">
+            {% for epic in epics %}
+                <div class="list-item">
+                    <div class="list-item-header">
+                        <a href="/epics/{{ epic.id }}" class="list-item-title">{{ epic.title }}</a>
+                        <span class="status-badge status-{{ epic.status.lower().replace(' ', '-') }}">{{ epic.status }}</span>
+                    </div>
+                    <div class="list-item-meta">
+                        <p>{{ epic.description[:150] + '...' if epic.description and epic.description|length > 150 else epic.description or 'No description' }}</p>
+                        <div class="grid grid-3" style="margin-top: 0.5rem;">
+                            <div>
+                                <strong>Target Launch:</strong><br>
+                                {{ epic.target_launch_date or 'Not set' }}
+                            </div>
+                            <div>
+                                <strong>Risks:</strong><br>
+                                {{ epic.risks|length }} risks
+                            </div>
+                            <div>
+                                <strong>Last Updated:</strong><br>
+                                {{ epic.updated_at.strftime('%Y-%m-%d') }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            <p>No epics created yet. <a href="#" onclick="showCreateEpicModal()">Create your first epic</a> to get started!</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %} 
