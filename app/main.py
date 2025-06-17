@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 import os
 from dotenv import load_dotenv
 import logging
-from datetime import date, timedelta
+from contextlib import asynccontextmanager
 
 from . import models, database, crud, schemas, email_service, jira_service
 from .database import engine
@@ -21,24 +21,29 @@ load_dotenv()
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Risk Tracker", description="Epic and Risk Management Tool", version="1.0.0")
-
-@app.on_event("startup")
-def startup_event():
-    """Start the scheduler on application startup."""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
     logging.info("Application starting up...")
     try:
         scheduler.start()
         logging.info("APScheduler started successfully.")
     except Exception as e:
         logging.error(f"Error starting APScheduler: {e}", exc_info=True)
-
-@app.on_event("shutdown")
-def shutdown_event():
-    """Shutdown the scheduler on application exit."""
+    
+    yield
+    
+    # Shutdown
     logging.info("Application shutting down...")
     scheduler.shutdown()
     logging.info("APScheduler shut down successfully.")
+
+app = FastAPI(
+    title="Risk Tracker", 
+    description="Epic and Risk Management Tool", 
+    version="1.0.0",
+    lifespan=lifespan
+)
 
 # Dependency to get the database session
 def get_db():
