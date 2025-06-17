@@ -9,6 +9,48 @@
         <button class="btn btn-primary" onclick="showCreateEpicModal()">Create New Epic</button>
     </div>
 
+    <details open>
+        <summary style="padding: 1rem; cursor: pointer; font-weight: 500;">Filter Epics</summary>
+        <div class="filter-bar">
+            <form method="get" action="/epics" id="filter-form" class="filter-bar">
+                <div class="filter-group">
+                    <label for="project_filter">Project:</label>
+                    <select name="project_id" id="project_filter" class="form-select" onchange="this.form.submit()">
+                        <option value="">All</option>
+                        {% for project in projects %}
+                            <option value="{{ project.id }}" {% if selected_project_id == project.id %}selected{% endif %}>
+                                {{ project.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="status_filter">Status:</label>
+                    <select name="status" id="status_filter" class="form-select" onchange="this.form.submit()">
+                        <option value="">All</option>
+                        {% for status in statuses %}
+                            <option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>
+                                {{ status }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="quarter_filter">Quarter:</label>
+                    <select name="quarter" id="quarter_filter" class="form-select" onchange="this.form.submit()">
+                        <option value="">All</option>
+                        {% for q in quarters %}
+                            <option value="{{ q }}" {% if selected_quarter == q %}selected{% endif %}>
+                                {{ q }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <a href="/epics" class="btn btn-small btn-secondary">Clear</a>
+            </form>
+        </div>
+    </details>
+
     {% if epics %}
         <div class="grid">
             {% for epic in epics %}

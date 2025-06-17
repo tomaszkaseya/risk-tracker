@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from . import models, schemas
 from datetime import date
+import calendar
 
 # Project CRUD operations
 def get_projects(db: Session, skip: int = 0, limit: int = 100):
@@ -38,8 +39,33 @@ def delete_project(db: Session, project_id: int):
     return False
 
 # Epic CRUD operations
-def get_epics(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Epic).offset(skip).limit(limit).all()
+def get_epics(db: Session, project_id: int = None, status: str = None, quarter: str = None, skip: int = 0, limit: int = 1000):
+    query = db.query(models.Epic)
+    if project_id:
+        query = query.filter(models.Epic.project_id == project_id)
+    if status:
+        query = query.filter(models.Epic.status == status)
+    if quarter and quarter != "":
+        try:
+            year, q_num = quarter.split('-Q')
+            year = int(year)
+            q_num = int(q_num)
+            
+            start_month = (q_num - 1) * 3 + 1
+            end_month = q_num * 3
+            
+            # Get the last day of the end month
+            last_day = calendar.monthrange(year, end_month)[1]
+            
+            start_date = date(year, start_month, 1)
+            end_date = date(year, end_month, last_day)
+
+            query = query.filter(models.Epic.target_launch_date.between(start_date, end_date))
+        except (ValueError, IndexError):
+            # Pass silently if the quarter format is invalid
+            pass
+
+    return query.order_by(models.Epic.target_launch_date.desc()).offset(skip).limit(limit).all()
 
 def get_epics_by_project(db: Session, project_id: int, skip: int = 0, limit: int = 100):
     return db.query(models.Epic).filter(models.Epic.project_id == project_id).offset(skip).limit(limit).all()

@@ -99,6 +99,32 @@ body {
     color: #333;
 }
 
+/* Filter Bar Styles */
+.filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: center;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+}
+.filter-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.filter-group label {
+    font-weight: 500;
+    font-size: 0.875rem;
+    white-space: nowrap;
+}
+.filter-group .form-select {
+    padding: 0.5rem;
+    font-size: 0.875rem;
+}
+
 .card-meta {
     font-size: 0.875rem;
     color: #666;

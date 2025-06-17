@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 import os
 from dotenv import load_dotenv
 import logging
+from datetime import date, timedelta
 
 from . import models, database, crud, schemas, email_service, jira_service
 from .database import engine
@@ -193,10 +194,43 @@ async def epic_detail(request: Request, epic_id: int, db: Session = Depends(get_
     return templates.TemplateResponse("epic_detail.html", {"request": request, "epic": epic, "projects": projects})
 
 @app.get("/epics", response_class=HTMLResponse)
-async def epics_list(request: Request, db: Session = Depends(get_db)):
-    epics = crud.get_epics(db)
+async def epics_list(request: Request, project_id: str = None, status: str = None, quarter: str = None, db: Session = Depends(get_db)):
+    p_id = None
+    if project_id and project_id.isdigit():
+        p_id = int(project_id)
+
+    epics = crud.get_epics(db, project_id=p_id, status=status, quarter=quarter)
     projects = crud.get_projects(db)
-    return templates.TemplateResponse("epics_list.html", {"request": request, "epics": epics, "projects": projects})
+    statuses = ["Planned", "In Progress", "Blocked", "Delayed", "Launched", "Cancelled"]
+
+    # Generate a list of relevant quarters for the filter
+    quarter_set = set()
+    # 1. Get quarters from existing epics
+    db_epics_with_dates = db.query(models.Epic.target_launch_date).filter(models.Epic.target_launch_date.isnot(None)).distinct().all()
+    for (epic_date,) in db_epics_with_dates:
+        quarter_set.add(f"{epic_date.year}-Q{(epic_date.month - 1) // 3 + 1}")
+    
+    # 2. Add current quarter and next 4 quarters to the set
+    today = date.today()
+    for i in range(5):
+        # Move to the middle of the quarter to avoid edge cases with month lengths
+        current_date = today + timedelta(days=i * 92) 
+        year = current_date.year
+        q = (current_date.month - 1) // 3 + 1
+        quarter_set.add(f"{year}-Q{q}")
+    
+    sorted_quarters = sorted(list(quarter_set), reverse=True)
+
+    return templates.TemplateResponse("epics_list.html", {
+        "request": request, 
+        "epics": epics, 
+        "projects": projects,
+        "statuses": statuses,
+        "quarters": sorted_quarters,
+        "selected_project_id": p_id,
+        "selected_status": status,
+        "selected_quarter": quarter
+    })
 
 # Jira Integration API Route
 @app.post("/api/jira/import/{jira_project_key}", status_code=200)
