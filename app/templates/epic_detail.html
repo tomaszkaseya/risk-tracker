@@ -350,7 +350,12 @@ async function updateEpic(event) {
     for (const key of ['description', 'target_launch_date', 'actual_launch_date']) {
         if (data[key] === '') data[key] = null;
     }
-    data.project_id = parseInt(data.project_id, 10);
+    
+    if (data.project_id) {
+        data.project_id = parseInt(data.project_id, 10);
+    } else {
+        data.project_id = null;
+    }
 
     try {
         const response = await fetch(`/api/epics/{{ epic.id }}`, {
@@ -360,23 +365,8 @@ async function updateEpic(event) {
         });
 
         if (response.ok) {
-            const updatedEpic = await response.json();
-            // Update UI dynamically
-            document.getElementById('epic-title-header').innerText = updatedEpic.title;
-            document.getElementById('epic-description-display').innerText = updatedEpic.description || 'No description provided.';
-            document.getElementById('epic-status-display').innerText = updatedEpic.status;
-            document.getElementById('epic-status-display').className = `status-badge status-${updatedEpic.status.toLowerCase().replace(' ', '-')}`;
-            document.getElementById('epic-target-launch-display').innerText = updatedEpic.target_launch_date || 'Not set';
-            document.getElementById('epic-actual-launch-display').innerText = updatedEpic.actual_launch_date || 'Not set';
-            
-            // Update project link
-            const projectLink = document.getElementById('epic-project-display');
-            projectLink.innerText = updatedEpic.project.name;
-            projectLink.href = `/projects/${updatedEpic.project.id}`;
-            
             hideEditEpicModal();
-            // No full page reload needed, but you can if you prefer
-            // location.reload(); 
+            location.reload(); // Reload the page to reflect all changes
         } else {
             const error = await response.json();
             alert('Error updating epic: ' + (error.detail || 'Unknown error'));
