@@ -2,6 +2,29 @@ from pydantic import BaseModel
 from datetime import date, datetime
 from typing import Optional, List
 
+# Project schemas
+class ProjectBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    jira_project_key: Optional[str] = None
+
+class ProjectCreate(ProjectBase):
+    pass
+
+class ProjectUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    jira_project_key: Optional[str] = None
+
+class Project(ProjectBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    epics: List["Epic"] = []
+
+    class Config:
+        from_attributes = True
+
 # Epic schemas
 class EpicBase(BaseModel):
     title: str
@@ -9,6 +32,8 @@ class EpicBase(BaseModel):
     target_launch_date: Optional[date] = None
     actual_launch_date: Optional[date] = None
     status: str = "Planned"
+    project_id: Optional[int] = None
+    jira_epic_key: Optional[str] = None
 
 class EpicCreate(EpicBase):
     pass
@@ -19,6 +44,8 @@ class EpicUpdate(BaseModel):
     target_launch_date: Optional[date] = None
     actual_launch_date: Optional[date] = None
     status: Optional[str] = None
+    project_id: Optional[int] = None
+    jira_epic_key: Optional[str] = None
 
 class Risk(BaseModel):
     id: int
@@ -38,6 +65,7 @@ class Epic(EpicBase):
     id: int
     created_at: datetime
     updated_at: datetime
+    project: Optional["Project"] = None
     risks: List[Risk] = []
 
     class Config:
@@ -74,4 +102,6 @@ class RiskUpdateResponse(RiskUpdateBase):
         from_attributes = True
 
 # Update forward references
-Risk.model_rebuild() 
+Risk.model_rebuild()
+Project.model_rebuild()
+Epic.model_rebuild() 

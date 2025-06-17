@@ -3,10 +3,25 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .database import Base
 
+class Project(Base):
+    __tablename__ = "projects"
+
+    id = Column(Integer, primary_key=True, index=True)
+    jira_project_key = Column(String(100), unique=True, nullable=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationship with epics
+    epics = relationship("Epic", back_populates="project", cascade="all, delete-orphan")
+
 class Epic(Base):
     __tablename__ = "epics"
 
     id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    jira_epic_key = Column(String(100), unique=True, nullable=True)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     target_launch_date = Column(Date, nullable=True)
@@ -15,7 +30,8 @@ class Epic(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    # Relationship with risks
+    # Relationships
+    project = relationship("Project", back_populates="epics")
     risks = relationship("Risk", back_populates="epic", cascade="all, delete-orphan")
 
 class Risk(Base):

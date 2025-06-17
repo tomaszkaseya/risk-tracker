@@ -2,12 +2,53 @@ from sqlalchemy.orm import Session
 from . import models, schemas
 from datetime import date
 
+# Project CRUD operations
+def get_projects(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.Project).offset(skip).limit(limit).all()
+
+def get_project(db: Session, project_id: int):
+    return db.query(models.Project).filter(models.Project.id == project_id).first()
+
+def get_project_by_jira_key(db: Session, jira_project_key: str):
+    return db.query(models.Project).filter(models.Project.jira_project_key == jira_project_key).first()
+
+def create_project(db: Session, project: schemas.ProjectCreate):
+    db_project = models.Project(**project.model_dump())
+    db.add(db_project)
+    db.commit()
+    db.refresh(db_project)
+    return db_project
+
+def update_project(db: Session, project_id: int, project: schemas.ProjectUpdate):
+    db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if db_project:
+        update_data = project.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(db_project, key, value)
+        db.commit()
+        db.refresh(db_project)
+    return db_project
+
+def delete_project(db: Session, project_id: int):
+    db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if db_project:
+        db.delete(db_project)
+        db.commit()
+        return True
+    return False
+
 # Epic CRUD operations
 def get_epics(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Epic).offset(skip).limit(limit).all()
 
+def get_epics_by_project(db: Session, project_id: int, skip: int = 0, limit: int = 100):
+    return db.query(models.Epic).filter(models.Epic.project_id == project_id).offset(skip).limit(limit).all()
+
 def get_epic(db: Session, epic_id: int):
     return db.query(models.Epic).filter(models.Epic.id == epic_id).first()
+
+def get_epic_by_jira_key(db: Session, jira_epic_key: str):
+    return db.query(models.Epic).filter(models.Epic.jira_epic_key == jira_epic_key).first()
 
 def create_epic(db: Session, epic: schemas.EpicCreate):
     db_epic = models.Epic(**epic.model_dump())

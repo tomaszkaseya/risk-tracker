@@ -5,22 +5,41 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 import os
 from dotenv import load_dotenv
+import logging
 
-from . import models, database, crud, schemas, email_service
+from . import models, database, crud, schemas, email_service, jira_service
+from .database import engine
+from .scheduler import scheduler
+
+# Configure basic logging
+logging.basicConfig(level=logging.INFO)
 
 # Load environment variables
 load_dotenv()
 
 # Create database tables
-models.Base.metadata.create_all(bind=database.engine)
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Risk Tracker", description="Epic and Risk Management Tool", version="1.0.0")
 
-# Mount static files and templates
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
-templates = Jinja2Templates(directory="app/templates")
+@app.on_event("startup")
+def startup_event():
+    """Start the scheduler on application startup."""
+    logging.info("Application starting up...")
+    try:
+        scheduler.start()
+        logging.info("APScheduler started successfully.")
+    except Exception as e:
+        logging.error(f"Error starting APScheduler: {e}", exc_info=True)
 
-# Dependency to get database session
+@app.on_event("shutdown")
+def shutdown_event():
+    """Shutdown the scheduler on application exit."""
+    logging.info("Application shutting down...")
+    scheduler.shutdown()
+    logging.info("APScheduler shut down successfully.")
+
+# Dependency to get the database session
 def get_db():
     db = database.SessionLocal()
     try:
@@ -28,11 +47,53 @@ def get_db():
     finally:
         db.close()
 
+# Mount static files
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+templates = Jinja2Templates(directory="app/templates")
+
 # API Routes
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request, db: Session = Depends(get_db)):
     epics = crud.get_epics(db)
     return templates.TemplateResponse("index.html", {"request": request, "epics": epics})
+
+# Project API Routes
+@app.get("/api/projects", response_model=list[schemas.Project])
+def get_projects(db: Session = Depends(get_db)):
+    return crud.get_projects(db)
+
+@app.post("/api/projects", response_model=schemas.Project)
+def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db)):
+    return crud.create_project(db=db, project=project)
+
+@app.get("/api/projects/{project_id}", response_model=schemas.Project)
+def get_project(project_id: int, db: Session = Depends(get_db)):
+    project = crud.get_project(db, project_id=project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+@app.put("/api/projects/{project_id}", response_model=schemas.Project)
+def update_project(project_id: int, project: schemas.ProjectUpdate, db: Session = Depends(get_db)):
+    db_project = crud.update_project(db, project_id=project_id, project=project)
+    if db_project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return db_project
+
+@app.delete("/api/projects/{project_id}")
+def delete_project(project_id: int, db: Session = Depends(get_db)):
+    success = crud.delete_project(db, project_id=project_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"message": "Project deleted successfully"}
+
+@app.get("/api/projects/{project_id}/epics", response_model=list[schemas.Epic])
+def get_project_epics(project_id: int, db: Session = Depends(get_db)):
+    # Verify project exists
+    project = crud.get_project(db, project_id=project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return crud.get_epics_by_project(db, project_id=project_id)
 
 @app.get("/api/epics", response_model=list[schemas.Epic])
 def get_epics(db: Session = Depends(get_db)):
@@ -110,17 +171,48 @@ async def request_date_change(
         raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
 
 # HTML Routes for web interface
+@app.get("/projects", response_class=HTMLResponse)
+async def projects_list(request: Request, db: Session = Depends(get_db)):
+    projects = crud.get_projects(db)
+    return templates.TemplateResponse("projects_list.html", {"request": request, "projects": projects})
+
+@app.get("/projects/{project_id}", response_class=HTMLResponse)
+async def project_detail(request: Request, project_id: int, db: Session = Depends(get_db)):
+    project = crud.get_project(db, project_id=project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    epics = crud.get_epics_by_project(db, project_id=project_id)
+    return templates.TemplateResponse("project_detail.html", {"request": request, "project": project, "epics": epics})
+
 @app.get("/epics/{epic_id}", response_class=HTMLResponse)
 async def epic_detail(request: Request, epic_id: int, db: Session = Depends(get_db)):
     epic = crud.get_epic(db, epic_id=epic_id)
     if epic is None:
         raise HTTPException(status_code=404, detail="Epic not found")
-    return templates.TemplateResponse("epic_detail.html", {"request": request, "epic": epic})
+    projects = crud.get_projects(db)  # For project dropdown in edit
+    return templates.TemplateResponse("epic_detail.html", {"request": request, "epic": epic, "projects": projects})
 
 @app.get("/epics", response_class=HTMLResponse)
 async def epics_list(request: Request, db: Session = Depends(get_db)):
     epics = crud.get_epics(db)
-    return templates.TemplateResponse("epics_list.html", {"request": request, "epics": epics})
+    projects = crud.get_projects(db)
+    return templates.TemplateResponse("epics_list.html", {"request": request, "epics": epics, "projects": projects})
+
+# Jira Integration API Route
+@app.post("/api/jira/import/{jira_project_key}", status_code=200)
+def import_jira_project(jira_project_key: str, db: Session = Depends(get_db)):
+    try:
+        result = jira_service.import_epics_from_jira(db, jira_project_key)
+        return result
+    except ConnectionError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except IOError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        # Catch any other unexpected errors
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
 
 if __name__ == "__main__":
     import uvicorn

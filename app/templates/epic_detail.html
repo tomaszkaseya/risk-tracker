@@ -3,32 +3,47 @@
 {% block title %}{{ epic.title }} - Risk Tracker{% endblock %}
 
 {% block content %}
+<div class="breadcrumb">
+    {% if epic.project %}
+        <a href="/projects">Projects</a> &raquo; 
+        <a href="/projects/{{ epic.project.id }}">{{ epic.project.name }}</a> &raquo; 
+    {% else %}
+        <a href="/epics">Epics</a> &raquo;
+    {% endif %}
+    {{ epic.title }}
+</div>
+
 <div class="card">
     <div class="card-header">
-        <h2 class="card-title">{{ epic.title }}</h2>
+        <h2 class="card-title" id="epic-title-header">{{ epic.title }}</h2>
         <div>
-            <span class="status-badge status-{{ epic.status.lower().replace(' ', '-') }}">{{ epic.status }}</span>
-            <button class="btn btn-small btn-primary" onclick="showEditEpicModal()" style="margin-left: 1rem;">Edit Epic</button>
+            <button class="btn btn-primary" onclick="showEditEpicModal()">Edit Epic</button>
+            <button class="btn btn-danger" onclick="confirmDeleteEpic()">Delete Epic</button>
         </div>
     </div>
-    
-    <div class="grid grid-2">
-        <div>
-            <h3>Epic Details</h3>
-            <p><strong>Description:</strong> {{ epic.description or 'No description provided' }}</p>
-            <p><strong>Target Launch Date:</strong> {{ epic.target_launch_date or 'Not set' }}</p>
-            <p><strong>Actual Launch Date:</strong> {{ epic.actual_launch_date or 'Not launched' }}</p>
-            <p><strong>Created:</strong> {{ epic.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
-            <p><strong>Last Updated:</strong> {{ epic.updated_at.strftime('%Y-%m-%d %H:%M') }}</p>
-        </div>
-        
-        <div>
-            <h3>Actions</h3>
-            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                <button class="btn btn-success btn-small" onclick="showDateChangeModal()">Request Date Change</button>
-                <button class="btn btn-primary btn-small" onclick="showAddRiskModal()">Add Risk</button>
-                <button class="btn btn-danger btn-small" onclick="deleteEpic()">Delete Epic</button>
+    <div class="card-content">
+        <p id="epic-description-display">{{ epic.description or 'No description provided.' }}</p>
+
+        <div class="grid grid-4" style="margin-top: 1rem; border-top: 1px solid #eee; padding-top: 1rem;">
+             <div>
+                <strong>Project</strong><br>
+                <a href="/projects/{{ epic.project.id }}" id="epic-project-display">{{ epic.project.name if epic.project else 'N/A' }}</a>
             </div>
+             <div>
+                <strong>Status</strong><br>
+                <span class="status-badge status-{{ epic.status | lower | replace(' ', '-') }}" id="epic-status-display">{{ epic.status }}</span>
+            </div>
+             <div>
+                <strong>Target Launch</strong><br>
+                <span id="epic-target-launch-display">{{ epic.target_launch_date.strftime('%Y-%m-%d') if epic.target_launch_date else 'Not set' }}</span>
+            </div>
+             <div>
+                <strong>Actual Launch</strong><br>
+                <span id="epic-actual-launch-display">{{ epic.actual_launch_date.strftime('%Y-%m-%d') if epic.actual_launch_date else 'Not set' }}</span>
+            </div>
+        </div>
+        <div style="margin-top: 1rem; border-top: 1px solid #eee; padding-top: 1rem;">
+            <button class="btn btn-success btn-small" onclick="showDateChangeModal()">Request Date Change</button>
         </div>
     </div>
 </div>
@@ -36,7 +51,7 @@
 <div class="card">
     <div class="card-header">
         <h2 class="card-title">Associated Risks ({{ epic.risks|length }})</h2>
-        <button class="btn btn-small btn-primary" onclick="showAddRiskModal()">Add Risk</button>
+        <button class="btn btn-primary" onclick="showAddRiskModal()">Add Risk</button>
     </div>
     
     {% if epic.risks %}
@@ -48,22 +63,70 @@
                         <div>
                             <span class="status-badge status-{{ risk.status.lower().replace(' ', '-') }}">{{ risk.status }}</span>
                             <button class="btn btn-small btn-secondary" onclick="showRiskUpdatesModal({{ risk.id }})" style="margin-left: 0.5rem;">Updates ({{ risk.updates|length }})</button>
-                            <button class="btn btn-small btn-primary" onclick="showEditRiskModal({{ risk.id }})" style="margin-left: 0.5rem;">Edit</button>
                         </div>
                     </div>
                     <div class="list-item-meta">
                         <p><strong>Mitigation Plan:</strong> {{ risk.mitigation_plan or 'No mitigation plan provided' }}</p>
                         <p><strong>Date Added:</strong> {{ risk.date_added }}</p>
-                        <p><strong>Last Updated:</strong> {{ risk.updated_at.strftime('%Y-%m-%d %H:%M') }}</p>
                     </div>
                 </div>
             {% endfor %}
         </div>
     {% else %}
         <div class="alert alert-info">
-            <p>No risks associated with this epic yet. <a href="#" onclick="showAddRiskModal()">Add the first risk</a> to start tracking.</p>
+            <p>No risks associated with this epic yet. <a href="#" onclick="showAddRiskModal()">Add the first risk</a>.</p>
         </div>
     {% endif %}
+</div>
+
+<!-- Edit Epic Modal -->
+<div id="editEpicModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 2rem; border-radius: 8px; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto;">
+        <h2>Edit Epic</h2>
+        <form id="editEpicForm" onsubmit="updateEpic(event)">
+            <div class="form-group">
+                <label class="form-label" for="edit_epic_title">Title *</label>
+                <input type="text" id="edit_epic_title" name="title" class="form-input" required value="{{ epic.title }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="edit_epic_project">Project *</label>
+                <select id="edit_epic_project" name="project_id" class="form-input" required>
+                    {% for project in projects %}
+                        <option value="{{ project.id }}" {% if epic.project_id == project.id %}selected{% endif %}>
+                            {{ project.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="edit_epic_description">Description</label>
+                <textarea id="edit_epic_description" name="description" class="form-textarea">{{ epic.description or '' }}</textarea>
+            </div>
+             <div class="grid grid-2">
+                 <div class="form-group">
+                    <label class="form-label" for="edit_epic_status">Status</label>
+                    <select id="edit_epic_status" name="status" class="form-input">
+                        {% set statuses = ["Planned", "In Progress", "Blocked", "Delayed", "Launched", "Cancelled"] %}
+                        {% for status in statuses %}
+                             <option value="{{ status }}" {% if epic.status == status %}selected{% endif %}>{{ status }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit_epic_target_launch_date">Target Launch Date</label>
+                    <input type="date" id="edit_epic_target_launch_date" name="target_launch_date" class="form-input" value="{{ epic.target_launch_date if epic.target_launch_date }}">
+                </div>
+                 <div class="form-group">
+                    <label class="form-label" for="edit_epic_actual_launch_date">Actual Launch Date</label>
+                    <input type="date" id="edit_epic_actual_launch_date" name="actual_launch_date" class="form-input" value="{{ epic.actual_launch_date if epic.actual_launch_date }}">
+                </div>
+            </div>
+            <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 2rem;">
+                <button type="button" class="btn btn-secondary" onclick="hideEditEpicModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <!-- Date Change Request Modal -->
@@ -270,23 +333,85 @@ async function addRiskUpdate(event) {
     }
 }
 
-async function deleteEpic() {
-    if (confirm('Are you sure you want to delete this epic? This action cannot be undone.')) {
-        try {
-            const response = await fetch(`/api/epics/{{ epic.id }}`, {
-                method: 'DELETE',
-            });
+function showEditEpicModal() {
+    document.getElementById('editEpicModal').style.display = 'block';
+}
 
-            if (response.ok) {
-                alert('Epic deleted successfully!');
-                window.location.href = '/';
-            } else {
-                const error = await response.json();
-                alert('Error deleting epic: ' + (error.detail || 'Unknown error'));
-            }
-        } catch (error) {
-            alert('Error deleting epic: ' + error.message);
+function hideEditEpicModal() {
+    document.getElementById('editEpicModal').style.display = 'none';
+}
+
+async function updateEpic(event) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    const data = Object.fromEntries(formData.entries());
+    
+    // Convert empty strings to null
+    for (const key of ['description', 'target_launch_date', 'actual_launch_date']) {
+        if (data[key] === '') data[key] = null;
+    }
+    data.project_id = parseInt(data.project_id, 10);
+
+    try {
+        const response = await fetch(`/api/epics/{{ epic.id }}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+
+        if (response.ok) {
+            const updatedEpic = await response.json();
+            // Update UI dynamically
+            document.getElementById('epic-title-header').innerText = updatedEpic.title;
+            document.getElementById('epic-description-display').innerText = updatedEpic.description || 'No description provided.';
+            document.getElementById('epic-status-display').innerText = updatedEpic.status;
+            document.getElementById('epic-status-display').className = `status-badge status-${updatedEpic.status.toLowerCase().replace(' ', '-')}`;
+            document.getElementById('epic-target-launch-display').innerText = updatedEpic.target_launch_date || 'Not set';
+            document.getElementById('epic-actual-launch-display').innerText = updatedEpic.actual_launch_date || 'Not set';
+            
+            // Update project link
+            const projectLink = document.getElementById('epic-project-display');
+            projectLink.innerText = updatedEpic.project.name;
+            projectLink.href = `/projects/${updatedEpic.project.id}`;
+            
+            hideEditEpicModal();
+            // No full page reload needed, but you can if you prefer
+            // location.reload(); 
+        } else {
+            const error = await response.json();
+            alert('Error updating epic: ' + (error.detail || 'Unknown error'));
         }
+    } catch (error) {
+        alert('Error updating epic: ' + error.message);
+    }
+}
+
+function confirmDeleteEpic() {
+    if (confirm("Are you sure you want to delete this epic and all its associated risks? This action cannot be undone.")) {
+        deleteEpic();
+    }
+}
+
+async function deleteEpic() {
+    try {
+        const response = await fetch(`/api/epics/{{ epic.id }}`, {
+            method: 'DELETE',
+        });
+
+        if (response.ok) {
+            // Redirect to the project page if it exists, otherwise to the main epics list
+            const projectUrl = '{{ epic.project.id if epic.project else "" }}';
+            if (projectUrl) {
+                window.location.href = `/projects/${projectUrl}`;
+            } else {
+                window.location.href = '/epics';
+            }
+        } else {
+            const error = await response.json();
+            alert('Error deleting epic: ' + (error.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error deleting epic: ' + error.message);
     }
 }
 
