@@ -7,6 +7,7 @@ import os
 from dotenv import load_dotenv
 import logging
 from contextlib import asynccontextmanager
+from datetime import date, timedelta
 
 from . import models, database, crud, schemas, email_service, jira_service
 from .database import engine

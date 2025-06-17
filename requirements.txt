@@ -10,4 +10,7 @@ aiosmtplib==3.0.1
 requests
 yagmail
 jira
-apscheduler 
+apscheduler
+sendgrid
+pytest
+httpx 
