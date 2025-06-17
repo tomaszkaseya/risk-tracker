@@ -62,6 +62,7 @@
                         <div class="list-item-title">{{ risk.description }}</div>
                         <div>
                             <span class="status-badge status-{{ risk.status.lower().replace(' ', '-') }}">{{ risk.status }}</span>
+                            <button class="btn btn-small btn-secondary" onclick="showEditRiskModal({{ risk.id }})">Edit</button>
                             <button class="btn btn-small btn-secondary" onclick="showRiskUpdatesModal({{ risk.id }})" style="margin-left: 0.5rem;">Updates ({{ risk.updates|length }})</button>
                         </div>
                     </div>
@@ -176,6 +177,38 @@
             <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 2rem;">
                 <button type="button" class="btn btn-secondary" onclick="hideAddRiskModal()">Cancel</button>
                 <button type="submit" class="btn btn-primary">Add Risk</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Risk Modal -->
+<div id="editRiskModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 2rem; border-radius: 8px; width: 90%; max-width: 500px;">
+        <h2>Edit Risk</h2>
+        <form id="editRiskForm" onsubmit="updateRisk(event)">
+            <input type="hidden" id="edit_risk_id" name="risk_id">
+            <div class="form-group">
+                <label class="form-label" for="edit_risk_description">Risk Description *</label>
+                <textarea id="edit_risk_description" name="description" class="form-textarea" required></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="edit_mitigation_plan">Mitigation Plan</label>
+                <textarea id="edit_mitigation_plan" name="mitigation_plan" class="form-textarea"></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="edit_risk_status">Status</label>
+                <select id="edit_risk_status" name="status" class="form-select">
+                    <option value="Open">Open</option>
+                    <option value="Mitigating">Mitigating</option>
+                    <option value="Mitigated">Mitigated</option>
+                    <option value="Accepted">Accepted</option>
+                    <option value="Closed">Closed</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 2rem;">
+                <button type="button" class="btn btn-secondary" onclick="hideEditRiskModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
             </div>
         </form>
     </div>
@@ -402,6 +435,58 @@ async function deleteEpic() {
         }
     } catch (error) {
         alert('Error deleting epic: ' + error.message);
+    }
+}
+
+function hideEditRiskModal() {
+    document.getElementById('editRiskModal').style.display = 'none';
+    document.getElementById('editRiskForm').reset();
+}
+
+async function showEditRiskModal(riskId) {
+    try {
+        const response = await fetch(`/api/risks/${riskId}`);
+        if (!response.ok) throw new Error('Failed to fetch risk data.');
+        const risk = await response.json();
+
+        document.getElementById('edit_risk_id').value = risk.id;
+        document.getElementById('edit_risk_description').value = risk.description;
+        document.getElementById('edit_mitigation_plan').value = risk.mitigation_plan || '';
+        document.getElementById('edit_risk_status').value = risk.status;
+
+        document.getElementById('editRiskModal').style.display = 'block';
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+async function updateRisk(event) {
+    event.preventDefault();
+    const form = event.target;
+    const formData = new FormData(form);
+    const riskId = formData.get('risk_id');
+    const data = {
+        description: formData.get('description'),
+        mitigation_plan: formData.get('mitigation_plan') || null,
+        status: formData.get('status'),
+    };
+
+    try {
+        const response = await fetch(`/api/risks/${riskId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+
+        if (response.ok) {
+            hideEditRiskModal();
+            location.reload();
+        } else {
+            const error = await response.json();
+            alert('Error updating risk: ' + (error.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error updating risk: ' + error.message);
     }
 }
 
